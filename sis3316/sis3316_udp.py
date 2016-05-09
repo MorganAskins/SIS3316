@@ -141,11 +141,14 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 	def _read_link(self, addr):
 		""" Read request for a link interface. """
 		msg = b''.join(( b'\x10', pack('<I', addr) ))
+                # Morgan: Adding in packet identifier byte
+                pack_id = b'\x22'
+		msg = b''.join(( b'\x10', pack_id, pack('<I', addr) ))
 		self._req(msg)
 		resp = self._resp_register()
 		
 		try:	# Parse packet.
-			hdr, resp_addr, data = unpack_from('<BII', resp)
+			hdr, p_id, resp_addr, data = unpack_from('<BBII', resp)
 			if hdr != 0x10 or resp_addr != addr:
 				raise self._WrongResponceExcept
 		except struct_error:
@@ -179,15 +182,18 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 		for chunk in chunks:
 			cnum = len(chunk)
 			msg = b''.join(( b'\x20', pack('<H%dI' % (cnum), cnum-1, *chunk) ))
+                        # Morgan: Adding in packet identifier byte
+                        pack_id = b'\x22'
+			msg = b''.join(( b'\x20', pack_id, pack('<H%dI' % (cnum), cnum-1, *chunk) ))
 			self._req(msg)
 			resp = self._resp_register()
 			try:
-				hdr, stat = unpack_from('<BB',resp[:2])
+				hdr, p_id, stat = unpack_from('<BBB',resp[:3])
 				if hdr != 0x20:
 					raise self._WrongResponceExcept
 				self.__status_err_check(stat)
 
-				data.extend( unpack_from('<%dI' % (cnum), resp[2:]) )
+				data.extend( unpack_from('<%dI' % (cnum), resp[3:]) )
 				
 			except struct_error:
 				raise self._MalformedResponceExcept
@@ -225,11 +231,15 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 			
 			msg = pack('<BH%dI' % (2*ilen,),\
 					0x21, ilen - 1, *admix[2*idx:2*(idx+ilen)] )
+                        # Morgan: Adding in packet identifier byte
+                        pack_id = 0x22 
+			msg = pack('<BBH%dI' % (2*ilen,),\
+					0x21, pack_id,ilen - 1, *admix[2*idx:2*(idx+ilen)] )
 			self._req(msg)
 			resp = self._resp_register()
 		
 			try:
-				hdr, stat = unpack_from('<BB',resp)
+				hdr, p_id, stat = unpack_from('<BBB',resp)
 				if hdr != 0x21:
 					raise self._WrongResponceExcept
 				self.__status_err_check(stat)
@@ -327,7 +337,7 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 			timeout = self.default_timeout
 		
 		sock = self._sock
-		HEADER_SZ_B = 2
+		HEADER_SZ_B = 3 # Changed from 2 to 3 to include packet id Morgan
 		tempbuf = bytearray(self.jumbo)
 		
 		packet_idx=0
@@ -346,7 +356,7 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 			if (hdr != 0x30):
 				raise self._WrongResponceExcept('The packet header is not 0x30')
 				
-			stat = tempbuf[1]
+			stat = tempbuf[2] # Changed to 2 because packet identifier is 1 Morgan
 			self.__status_err_check(stat)
 			
 			packet_no = stat & 0xF
@@ -444,6 +454,9 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 					wnum = min(nwords - wfinished, FIFO_READ_LIMIT, wcwnd)
 
 					msg = b''.join(( '\x30', pack('<HI', wnum-1, fifo_addr) ))
+                                        # Morgan
+                                        pack_id = b'\x22'
+					msg = b''.join(( '\x30', pack_id, pack('<HI', wnum-1, fifo_addr) ))
 					self._req(msg)
 					self._ack_fifo_read(dest, wnum) # <- exceptions are most probable here 
 					
