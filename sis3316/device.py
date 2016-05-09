@@ -48,6 +48,7 @@ class Sis3316(object):
 		'nim_ti_ivert'		: Flag( 5, SIS3316_NIM_INPUT_CONTROL_REG, "NIM Input TI Invert"),
 		'nim_ti_as_te'		: Flag( 4, SIS3316_NIM_INPUT_CONTROL_REG, "NIM Input TI as as Trigger Enable"),
 		
+		'feedback_int_as_ext'	: Flag(14, SIS3316_ACQUISITION_CONTROL_STATUS, "Feedback selected internal trigger as external trigger enable"),
 		'nim_ui_as_toggle'	: Flag(13, SIS3316_ACQUISITION_CONTROL_STATUS, "NIM UI signal as disarm Bank-X and arm alternate Bank."),
 		'nim_ti_as_toggle'	: Flag(12, SIS3316_ACQUISITION_CONTROL_STATUS, "NIM TI signal as disarm Bank-X and arm alternate Bank."),
 		'local_veto_ena'  	: Flag(11, SIS3316_ACQUISITION_CONTROL_STATUS, "Enable local veto."),
