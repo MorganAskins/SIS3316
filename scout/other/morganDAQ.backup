@@ -1,0 +1,117 @@
+#!/usr/bin/env python
+import sis3316
+import argparse
+
+def parser():
+  parser = argparse.ArgumentParser()
+  parser.add_argument('host', type=str,
+      help="SIS3316 IP Address")
+  parser.add_argument('-p', '--port', type=int, default=3333,
+      help="SIS3316 Host port, default 3333")
+  parser.add_argument('--debug', action='store_true',
+      help="Turn debug verbosity on")
+  parser.add_argument('-t', '--time', type=int, default=-1,
+      help="Collection time for the DAQ in seconds. -1 for infinite")
+  parser.add_argument('--faketrigger', type=int, default=0,
+      help="Trigger the DAQ at a given frequency")
+  return parser.parse_args()
+
+class bugger():
+  def __init__(self, debug):
+    self._debug = debug
+  def bprint(self, txt):
+    if self._debug:
+      print(txt)
+
+
+def main():
+  args = parser()
+  bug = bugger(args.debug)
+  bug.bprint( 'Connecting to %s:%i' % (args.host,args.port) )
+  dev = sis3316.Sis3316_udp(args.host, args.port)
+  dev.open()
+  dev.reset()
+  dev.configure()
+  # TODO: Add loadable configuration file, for now manually configure
+  # Set flags; Options:
+  # nim_ui_as_veto, nim_ui_function, nim_ui_ls, nim_ui_ivert, nim_ui_as_ts_clear
+  # nim_ti_function, nim_ti_ls, nim_ti_ivert, nim_ti_as_te, nim_ui_as_toggle
+  # nim_ti_as_toggle, local_veto_ena, extern_ts_clr_ena, trig_as_veto, extern_trig_ena
+  # dev.flags = ['extern_trig_ena', 'nim_ti_as_te', 'nim_ti_ls']
+  #dev.flags = ['extern_trig_ena', 'nim_ti_as_te', 'feedback_int_as_ext'] 
+  #dev.flags = ['extern_trig_ena', 'nim_ti_as_te', 'feedback_int_as_ext', 'extern_ts_clr_ena']
+  dev.flags = ['nim_ti_as_te', 'extern_ts_clr_ena', 'extern_trig_ena']
+  #active_channels = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+  active_channels = [0,1,2,3]
+  # Channel flags; Options:
+  # invert, intern_sum_trig, intern_trig, extern_trig, intern_gate1, intern_gate2,
+  # extern_gate, extern_veto
+  #chflags = ['extern_trig', 'intern_trig', 'intern_sum_trig'] # Add invert for pmts
+  #chflags = ['extern_trig', 'intern_sum_trig', 'invert', 'intern_gate1']  # Add invert for pmts
+  chflags = ['extern_trig', 'invert']
+  #dev.write(0x74, int('0b11000000000011111111111111111111', base=2))
+  # 0x74 LEMO TI to TE
+  dev.write(0x74, 0x10000)
+  # Turn on sample saving for group 1
+  sample_size = 128 & 0xFFFE
+  sample_value = 0x0 + (sample_size << 16)
+  dev.write(0x1020, sample_value)
+  ## Thresholds
+  threshold = 134218528 
+  high_threshold = 134742000 
+  #dev.write(0x7c,0xF0000)
+  for ch in dev.channels:
+    if ch.idx in active_channels:
+      #ch.dac_offset = 10000
+      ch.flags = chflags
+      ch.event_format_mask = 9
+      #ch.event_maw_ena = 1
+      #ch.gain = 1
+      #ch.trig.enable = 1
+      ch.trig.cfd_ena = 3
+      ch.trig.threshold = 100000
+      ch.trig.high_threshold = 120000
+      ch.trig.out_pulse_length = 4
+  for gr in dev.groups:
+    if (gr.idx == 0):
+      gr.clear_link_error_latch_bits()
+      gr.enable = True 
+      gr.addr_threshold = 6092
+      gr.accum1_start = 0
+      gr.accum2_start = 12
+      gr.accum3_start = 12
+      gr.accum4_start = 12
+      gr.accum5_start = 12
+      gr.accum6_start = 72
+      gr.accum7_start = 72
+      gr.accum8_start = 72
+      gr.accum1_window = 12
+      gr.accum2_window = 20
+      gr.accum3_window = 30
+      gr.accum4_window = 40
+      gr.accum5_window = 60 
+      gr.accum6_window = 30 
+      gr.accum7_window = 40 
+      gr.accum8_window = 50 
+      gr.gate_window = 1040 
+      gr.gate_coinc_window = 0
+      gr.delay = 90
+      gr.sum_trig.enable = 1
+      gr.sum_trig.cfd_ena = 3
+      gr.sum_trig.threshold = threshold 
+      gr.sum_trig.high_suppress_ena = 1
+      gr.sum_trig.high_threshold = high_threshold 
+      gr.sum_trig.out_pulse_length = 4
+      gr.sum_trig.maw_gap_time = 4
+      gr.sum_trig.maw_peaking_time = 8
+      gr.raw_window = 128
+      gr.maw_delay = 0
+      gr.maw_window = 128
+
+  # Now run the detector for time args.time
+
+  # All finished
+  dev.close()
+  
+if __name__ == '__main__':
+  main()
